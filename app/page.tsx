@@ -24,9 +24,9 @@ export default function Home() {
         <Benefits />
         <Modules />
         <Compliance />
+        <Simulator />
         <Pricing />
         <Faq />
-        <Simulator />
         <FinalCta />
       </main>
       <Footer />

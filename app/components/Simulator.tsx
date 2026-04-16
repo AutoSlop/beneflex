@@ -2,12 +2,17 @@
 
 import { useMemo, useState } from "react";
 
-const RESIDUAL_WASTE = 0.02;
+const WASTE_REDUCTION = 0.8;
 
 const LIMITS = {
   employees: { min: 50, max: 5000, step: 10, default: 250 },
-  budget: { min: 1_000_000, max: 500_000_000, step: 500_000, default: 60_000_000 },
-  waste: { min: 0, max: 40, step: 1, default: 18 },
+  budgetPerEmployee: {
+    min: 50_000,
+    max: 2_000_000,
+    step: 10_000,
+    default: 300_000,
+  },
+  waste: { min: 1, max: 30, step: 1, default: 15 },
 };
 
 const copFormatter = new Intl.NumberFormat("es-CO", {
@@ -25,24 +30,29 @@ function clamp(value: number, min: number, max: number) {
 
 export default function Simulator() {
   const [employees, setEmployees] = useState(LIMITS.employees.default);
-  const [budget, setBudget] = useState(LIMITS.budget.default);
+  const [budgetPerEmployee, setBudgetPerEmployee] = useState(
+    LIMITS.budgetPerEmployee.default,
+  );
   const [waste, setWaste] = useState(LIMITS.waste.default);
 
   const results = useMemo(() => {
-    const currentWaste = budget * (waste / 100);
-    const residual = budget * RESIDUAL_WASTE;
-    const monthlySavings = Math.max(0, currentWaste - residual);
-    const annualSavings = monthlySavings * 12;
-    const perEmployee = employees > 0 ? monthlySavings / employees : 0;
-    const savingsRate = budget > 0 ? (monthlySavings / budget) * 100 : 0;
+    const gastoMensualActual = employees * budgetPerEmployee;
+    const desperdicioMensual = gastoMensualActual * (waste / 100);
+    const ahorroMensualConBeneFlex = Math.max(0, desperdicioMensual * WASTE_REDUCTION);
+    const ahorroAnualConBeneFlex = ahorroMensualConBeneFlex * 12;
+    const desperdicioResidual = Math.max(0, desperdicioMensual - ahorroMensualConBeneFlex);
+    const residualShare = desperdicioMensual > 0
+      ? (desperdicioResidual / desperdicioMensual) * 100
+      : 0;
     return {
-      currentWaste,
-      monthlySavings,
-      annualSavings,
-      perEmployee,
-      savingsRate,
+      gastoMensualActual,
+      desperdicioMensual,
+      ahorroMensualConBeneFlex,
+      ahorroAnualConBeneFlex,
+      desperdicioResidual,
+      residualShare,
     };
-  }, [employees, budget, waste]);
+  }, [employees, budgetPerEmployee, waste]);
 
   return (
     <section id="simulador" className="relative overflow-hidden">
@@ -54,13 +64,13 @@ export default function Simulator() {
             Simulador de ahorro
           </p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            Calcula cuánto ahorra tu empresa con BeneFlex
+            Calcula cuánto podría ahorrar tu empresa
           </h2>
           <p className="mt-4 text-lg text-muted">
-            Los vales tradicionales suelen perder entre 10% y 30% del
-            presupuesto por desperdicio, caducidad o mal uso. BeneFlex reduce
-            ese desperdicio controlando categorías, comercios y horarios desde
-            un único panel.
+            Estimación comparativa frente a vales tradicionales. Ajusta las
+            variables de tu empresa y observa, en tiempo real, cuánto del
+            desperdicio actual podrías recuperar asignando beneficios por
+            categoría con reglas de uso.
           </p>
         </div>
 
@@ -80,15 +90,21 @@ export default function Simulator() {
             />
 
             <SliderField
-              label="Presupuesto mensual de beneficios"
-              suffix="COP / mes"
-              value={budget}
-              min={LIMITS.budget.min}
-              max={LIMITS.budget.max}
-              step={LIMITS.budget.step}
-              display={copFormatter.format(budget)}
+              label="Presupuesto mensual por empleado"
+              suffix="COP / empleado"
+              value={budgetPerEmployee}
+              min={LIMITS.budgetPerEmployee.min}
+              max={LIMITS.budgetPerEmployee.max}
+              step={LIMITS.budgetPerEmployee.step}
+              display={copFormatter.format(budgetPerEmployee)}
               onChange={(v) =>
-                setBudget(clamp(Math.round(v), LIMITS.budget.min, LIMITS.budget.max))
+                setBudgetPerEmployee(
+                  clamp(
+                    Math.round(v),
+                    LIMITS.budgetPerEmployee.min,
+                    LIMITS.budgetPerEmployee.max,
+                  ),
+                )
               }
             />
 
@@ -107,10 +123,12 @@ export default function Simulator() {
             />
 
             <div className="mt-6 rounded-2xl border border-border bg-background px-4 py-3 text-xs text-muted">
-              <strong className="font-semibold text-primary">Supuesto:</strong>{" "}
-              con BeneFlex el desperdicio residual promedio es del 2% gracias a
-              reglas por categoría, comercio y horario, más trazabilidad en
-              tiempo real.
+              <strong className="font-semibold text-primary">
+                Gasto mensual actual estimado:
+              </strong>{" "}
+              {copFormatter.format(results.gastoMensualActual)} — BeneFlex
+              reduce gran parte del desperdicio al asignar beneficios por
+              categoría y reglas de uso en tiempo real.
             </div>
           </div>
 
@@ -118,36 +136,28 @@ export default function Simulator() {
             <ResultCard
               eyebrow="Ahorro estimado"
               label="Ahorro anual con BeneFlex"
-              value={copFormatter.format(results.annualSavings)}
-              hint={`${copFormatter.format(results.monthlySavings)} al mes`}
+              value={copFormatter.format(results.ahorroAnualConBeneFlex)}
+              hint={`${copFormatter.format(results.ahorroMensualConBeneFlex)} al mes`}
               highlight
             />
 
             <div className="grid gap-4 sm:grid-cols-2">
               <ResultCard
-                label="Ahorro por empleado / mes"
-                value={copFormatter.format(results.perEmployee)}
+                label="Ahorro mensual estimado"
+                value={copFormatter.format(results.ahorroMensualConBeneFlex)}
               />
               <ResultCard
-                label="Recuperación del presupuesto"
-                value={`${results.savingsRate.toFixed(1)}%`}
-                hint={`Vs. ${waste}% de desperdicio actual`}
+                label="Desperdicio actual estimado"
+                value={copFormatter.format(results.desperdicioMensual)}
+                hint={`${waste}% del presupuesto mensual`}
               />
             </div>
 
-            <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
-                Desperdicio actual estimado
-              </p>
-              <p className="mt-2 text-xl font-semibold text-foreground">
-                {copFormatter.format(results.currentWaste)}{" "}
-                <span className="text-sm font-normal text-muted">/ mes</span>
-              </p>
-              <p className="mt-2 text-xs text-muted">
-                Ese es el dinero que tu empresa pierde hoy por vales caducados,
-                mal uso o beneficios no redimidos.
-              </p>
-            </div>
+            <ComparisonBar
+              wasteAmount={results.desperdicioMensual}
+              residualAmount={results.desperdicioResidual}
+              residualShare={results.residualShare}
+            />
 
             <a
               href="#demo"
@@ -170,6 +180,11 @@ export default function Simulator() {
                 <path d="M13 5l7 7-7 7" />
               </svg>
             </a>
+
+            <p className="text-xs text-muted">
+              Estimación referencial. Los resultados dependen de la política de
+              beneficios y uso real.
+            </p>
           </div>
         </div>
       </div>
@@ -257,7 +272,8 @@ function SliderField({
 function formatBound(value: number, suffix: string) {
   if (suffix === "%") return `${value}%`;
   if (suffix.startsWith("COP")) {
-    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(0)}M`;
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `${(value / 1_000).toFixed(0)}k`;
     return numberFormatter.format(value);
   }
   return numberFormatter.format(value);
@@ -301,6 +317,71 @@ function ResultCard({ eyebrow, label, value, hint, highlight }: ResultCardProps)
         {value}
       </p>
       {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
+    </div>
+  );
+}
+
+type ComparisonBarProps = {
+  wasteAmount: number;
+  residualAmount: number;
+  residualShare: number;
+};
+
+function ComparisonBar({
+  wasteAmount,
+  residualAmount,
+  residualShare,
+}: ComparisonBarProps) {
+  const residualPercent = Math.max(0, Math.min(100, residualShare));
+  const beneflexWidth = `${residualPercent}%`;
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
+        Desperdicio: modelo tradicional vs. BeneFlex
+      </p>
+
+      <div className="mt-4 space-y-4">
+        <div>
+          <div className="flex items-baseline justify-between text-xs">
+            <span className="font-medium text-foreground">Modelo tradicional</span>
+            <span className="font-semibold text-foreground">
+              {copFormatter.format(wasteAmount)}
+            </span>
+          </div>
+          <div
+            className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-border"
+            role="img"
+            aria-label={`Modelo tradicional: ${copFormatter.format(wasteAmount)} de desperdicio mensual`}
+          >
+            <div className="h-full w-full rounded-full bg-gradient-to-r from-amber-300 to-orange-400" />
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-baseline justify-between text-xs">
+            <span className="font-medium text-foreground">Con BeneFlex</span>
+            <span className="font-semibold text-primary">
+              {copFormatter.format(residualAmount)}
+            </span>
+          </div>
+          <div
+            className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-border"
+            role="img"
+            aria-label={`Con BeneFlex: ${copFormatter.format(residualAmount)} de desperdicio mensual residual`}
+          >
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-primary to-secondary transition-[width] duration-300 ease-out"
+              style={{ width: beneflexWidth }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <p className="mt-4 text-xs text-muted">
+        BeneFlex recupera hasta el 80% del desperdicio al controlar categorías,
+        comercios y horarios desde un solo panel.
+      </p>
     </div>
   );
 }
