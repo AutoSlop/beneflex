@@ -59,3 +59,41 @@ body {
   outline-offset: 2px;
   border-radius: 8px;
 }
+
+/* Simulator range slider */
+.simulator-range {
+  height: 6px;
+  border-radius: 9999px;
+  outline: none;
+}
+.simulator-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--surface);
+  border: 3px solid var(--primary);
+  box-shadow: 0 2px 6px rgba(11, 31, 29, 0.18);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.simulator-range::-webkit-slider-thumb:hover {
+  transform: scale(1.08);
+  box-shadow: 0 4px 10px rgba(11, 31, 29, 0.22);
+}
+.simulator-range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--surface);
+  border: 3px solid var(--primary);
+  box-shadow: 0 2px 6px rgba(11, 31, 29, 0.18);
+  cursor: pointer;
+}
+.simulator-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--secondary);
+}
+.simulator-range:focus-visible::-moz-range-thumb {
+  border-color: var(--secondary);
+}

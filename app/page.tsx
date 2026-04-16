@@ -8,6 +8,7 @@ import Modules from "./components/Modules";
 import Compliance from "./components/Compliance";
 import Pricing from "./components/Pricing";
 import Faq from "./components/Faq";
+import Simulator from "./components/Simulator";
 import FinalCta from "./components/FinalCta";
 import Footer from "./components/Footer";
 
@@ -25,6 +26,7 @@ export default function Home() {
         <Compliance />
         <Pricing />
         <Faq />
+        <Simulator />
         <FinalCta />
       </main>
       <Footer />
