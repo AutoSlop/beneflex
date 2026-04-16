@@ -2,34 +2,98 @@
 
 import { useState } from "react";
 
+const DEMO_ENDPOINT = "/api/demo-request";
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type Status = "idle" | "loading" | "success" | "error";
+
 export default function FinalCta() {
-  const [sent, setSent] = useState(false);
+  const [status, setStatus] = useState<Status>("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    company?: string;
+    email?: string;
+    employees?: string;
+  }>({});
   const [form, setForm] = useState({
-    name: "",
     company: "",
     email: "",
-    size: "100–300",
+    employees: "",
   });
 
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    // No backend — purely front-end demo UX.
-    if (typeof window !== "undefined") {
-      try {
-        const stored = JSON.parse(
-          window.localStorage.getItem("beneflex_demo_requests") ?? "[]"
-        );
-        stored.push({ ...form, at: new Date().toISOString() });
-        window.localStorage.setItem(
-          "beneflex_demo_requests",
-          JSON.stringify(stored)
-        );
-      } catch {
-        // ignore storage errors
-      }
+  function validate() {
+    const errors: typeof fieldErrors = {};
+    if (!form.company.trim()) {
+      errors.company = "El nombre de la empresa es obligatorio.";
     }
-    setSent(true);
+    if (!form.email.trim()) {
+      errors.email = "El correo corporativo es obligatorio.";
+    } else if (!EMAIL_RE.test(form.email.trim())) {
+      errors.email = "Ingresa un correo corporativo válido.";
+    }
+    const employeesNum = Number(form.employees);
+    if (form.employees.trim() === "") {
+      errors.employees = "El número de empleados es obligatorio.";
+    } else if (!Number.isFinite(employeesNum) || employeesNum <= 0) {
+      errors.employees = "Debe ser un número mayor a 0.";
+    }
+    return errors;
   }
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    const errors = validate();
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setStatus("error");
+      setErrorMessage("Revisa los campos marcados y vuelve a intentarlo.");
+      return;
+    }
+
+    setStatus("loading");
+
+    try {
+      const res = await fetch(DEMO_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company: form.company.trim(),
+          email: form.email.trim(),
+          employees: Number(form.employees),
+        }),
+      });
+
+      const data = (await res.json().catch(() => null)) as
+        | {
+            ok?: boolean;
+            error?: string;
+            message?: string;
+            fields?: Record<string, string>;
+          }
+        | null;
+
+      if (!res.ok || !data?.ok) {
+        if (data?.fields) setFieldErrors(data.fields);
+        setStatus("error");
+        setErrorMessage(
+          data?.message ??
+            "No pudimos enviar tu solicitud. Intenta nuevamente en unos minutos."
+        );
+        return;
+      }
+
+      setStatus("success");
+    } catch {
+      setStatus("error");
+      setErrorMessage(
+        "Error de red al contactar /api/demo-request. Verifica tu conexión e intenta nuevamente."
+      );
+    }
+  }
+
+  const isLoading = status === "loading";
 
   return (
     <section id="demo" className="relative">
@@ -71,7 +135,7 @@ export default function FinalCta() {
             </div>
 
             <div className="rounded-2xl bg-surface p-6 shadow-lg sm:p-7">
-              {sent ? (
+              {status === "success" ? (
                 <div className="flex h-full flex-col items-center justify-center py-10 text-center">
                   <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
                     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -85,77 +149,157 @@ export default function FinalCta() {
                     Un especialista de BeneFlex te contactará en menos de 24
                     horas hábiles para coordinar la demo.
                   </p>
+                  <p className="mt-3 text-[11px] text-muted">
+                    Enviado a <code className="font-mono">{DEMO_ENDPOINT}</code>
+                  </p>
                 </div>
               ) : (
-                <form onSubmit={onSubmit} className="space-y-4">
+                <form onSubmit={onSubmit} noValidate className="space-y-4">
                   <h3 className="text-lg font-semibold text-foreground">
                     Solicitar demo
                   </h3>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Nombre" htmlFor="name">
-                      <input
-                        id="name"
-                        type="text"
-                        required
-                        value={form.name}
-                        onChange={(e) =>
-                          setForm({ ...form, name: e.target.value })
-                        }
-                        placeholder="Nombre y apellido"
-                        className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none"
-                      />
-                    </Field>
-                    <Field label="Empresa" htmlFor="company">
-                      <input
-                        id="company"
-                        type="text"
-                        required
-                        value={form.company}
-                        onChange={(e) =>
-                          setForm({ ...form, company: e.target.value })
-                        }
-                        placeholder="Razón social"
-                        className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none"
-                      />
-                    </Field>
-                  </div>
-                  <Field label="Correo corporativo" htmlFor="email">
+
+                  <Field
+                    label="Nombre de la empresa"
+                    htmlFor="company"
+                    error={fieldErrors.company}
+                  >
                     <input
-                      id="email"
-                      type="email"
+                      id="company"
+                      name="company"
+                      type="text"
                       required
-                      value={form.email}
-                      onChange={(e) =>
-                        setForm({ ...form, email: e.target.value })
+                      aria-invalid={Boolean(fieldErrors.company)}
+                      aria-describedby={
+                        fieldErrors.company ? "company-error" : undefined
                       }
-                      placeholder="tu.nombre@empresa.co"
-                      className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none"
+                      value={form.company}
+                      onChange={(e) => {
+                        setForm({ ...form, company: e.target.value });
+                        if (fieldErrors.company)
+                          setFieldErrors({ ...fieldErrors, company: undefined });
+                      }}
+                      placeholder="Razón social"
+                      disabled={isLoading}
+                      className={`h-11 w-full rounded-xl border bg-background px-3 text-sm text-foreground placeholder:text-muted focus:outline-none disabled:opacity-60 ${
+                        fieldErrors.company
+                          ? "border-red-500 focus:border-red-500"
+                          : "border-border focus:border-primary"
+                      }`}
                     />
                   </Field>
-                  <Field label="Número de empleados" htmlFor="size">
-                    <select
-                      id="size"
-                      value={form.size}
-                      onChange={(e) =>
-                        setForm({ ...form, size: e.target.value })
+
+                  <Field
+                    label="Email corporativo"
+                    htmlFor="email"
+                    error={fieldErrors.email}
+                  >
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      required
+                      aria-invalid={Boolean(fieldErrors.email)}
+                      aria-describedby={
+                        fieldErrors.email ? "email-error" : undefined
                       }
-                      className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground focus:border-primary focus:outline-none"
-                    >
-                      <option>Menos de 100</option>
-                      <option>100–300</option>
-                      <option>300–500</option>
-                      <option>Más de 500</option>
-                    </select>
+                      value={form.email}
+                      onChange={(e) => {
+                        setForm({ ...form, email: e.target.value });
+                        if (fieldErrors.email)
+                          setFieldErrors({ ...fieldErrors, email: undefined });
+                      }}
+                      placeholder="tu.nombre@empresa.co"
+                      disabled={isLoading}
+                      className={`h-11 w-full rounded-xl border bg-background px-3 text-sm text-foreground placeholder:text-muted focus:outline-none disabled:opacity-60 ${
+                        fieldErrors.email
+                          ? "border-red-500 focus:border-red-500"
+                          : "border-border focus:border-primary"
+                      }`}
+                    />
                   </Field>
+
+                  <Field
+                    label="Número de empleados"
+                    htmlFor="employees"
+                    error={fieldErrors.employees}
+                  >
+                    <input
+                      id="employees"
+                      name="employees"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      step={1}
+                      required
+                      aria-invalid={Boolean(fieldErrors.employees)}
+                      aria-describedby={
+                        fieldErrors.employees ? "employees-error" : undefined
+                      }
+                      value={form.employees}
+                      onChange={(e) => {
+                        setForm({ ...form, employees: e.target.value });
+                        if (fieldErrors.employees)
+                          setFieldErrors({
+                            ...fieldErrors,
+                            employees: undefined,
+                          });
+                      }}
+                      placeholder="Ej. 250"
+                      disabled={isLoading}
+                      className={`h-11 w-full rounded-xl border bg-background px-3 text-sm text-foreground placeholder:text-muted focus:outline-none disabled:opacity-60 ${
+                        fieldErrors.employees
+                          ? "border-red-500 focus:border-red-500"
+                          : "border-border focus:border-primary"
+                      }`}
+                    />
+                  </Field>
+
+                  {status === "error" && errorMessage && (
+                    <div
+                      role="alert"
+                      className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
+                    >
+                      {errorMessage}
+                    </div>
+                  )}
+
                   <button
                     type="submit"
-                    className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white shadow-md transition-all hover:bg-primary-dark hover:shadow-lg"
+                    disabled={isLoading}
+                    aria-busy={isLoading}
+                    className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white shadow-md transition-all hover:bg-primary-dark hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    Agendar demo
+                    {isLoading ? (
+                      <>
+                        <svg
+                          className="animate-spin"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                        </svg>
+                        Enviando…
+                      </>
+                    ) : (
+                      "Agendar demo"
+                    )}
                   </button>
+
                   <p className="text-center text-[11px] text-muted">
-                    Al enviar aceptas ser contactado por el equipo comercial de
-                    BeneFlex.
+                    El envío se realiza mediante{" "}
+                    <code className="font-mono text-primary">
+                      POST {DEMO_ENDPOINT}
+                    </code>
+                    . Al enviar aceptas ser contactado por el equipo comercial
+                    de BeneFlex.
                   </p>
                 </form>
               )}
@@ -170,10 +314,12 @@ export default function FinalCta() {
 function Field({
   label,
   htmlFor,
+  error,
   children,
 }: {
   label: string;
   htmlFor: string;
+  error?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -182,6 +328,15 @@ function Field({
         {label}
       </span>
       {children}
+      {error && (
+        <span
+          id={`${htmlFor}-error`}
+          role="alert"
+          className="mt-1 block text-[11px] font-medium text-red-600"
+        >
+          {error}
+        </span>
+      )}
     </label>
   );
 }
